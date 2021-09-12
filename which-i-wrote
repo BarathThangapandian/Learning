@@ -1,0 +1,329 @@
+#!/bin/bash
+
+
+
+function print_color(){
+NC="\033[0m"
+
+case $1 in
+
+    "red") color="\033[0;31m"
+       ;;
+    "green" ) color="\033[0;32m"
+       ;;
+    "*" ) color="\033[0m"
+       ;;
+esac
+  echo -e "${color} $2 ${NC}"
+  }
+
+function check_service(){
+if_service=$(systemctl is-active $1)
+if [ $if_service = "active" ]
+then
+ print_color "green" "$1 is active"
+else
+ print_color "red" "$1 is inactive"
+ exit 1
+fi
+}
+
+function checking_firewall()
+{
+firewall_check_status=$(firewall-cmd --list-all --zone=public | grep ports)
+ if [[ $firewall_check_status == *$1* ]]
+ then
+  print_color "green" "$1 port is active"
+ else
+  print_color "red" "$1 port is not active"
+ exit 1
+ fi
+}
+
+function check_item(){
+if [[ $1 = *$2* ]]
+then
+print_color "green" "$2 is available in browser"
+else
+print_color "red" "$2 is not available in browser"
+fi
+}
+
+#install firewall in DATABASE
+print_color "green" "firewall in DB.."
+
+sudo yum install -y firewalld
+sudo service firewalld start
+sudo systemctl enable firewalld
+
+check_service firewalld
+
+
+#configure mariadb service
+print_color "green" "mariadb"
+
+sudo yum install -y mariadb-server
+sudo service mariadb start
+sudo systemctl enable mariadb
+
+check_service mariadb
+
+#add firewall rule to the db
+print_color "green" "setup firewall rules"
+
+sudo firewall-cmd --permanent --zone=public --add-port=3306/tcp
+sudo firewall-cmd --reload
+
+checking_firewall 3306
+
+
+#create and configure user in db
+print_color "green" "user and pswd creation in DB"
+
+cat > configure-db.sql <<-EOF
+CREATE DATABASE ecomdb;
+CREATE USER 'ecomuser'@'localhost' IDENTIFIED BY 'ecompassword';
+GRANT ALL PRIVILEGES ON *.* TO 'ecomuser'@'localhost';
+FLUSH PRIVILEGES;
+EOF
+
+#run it in mysql
+print_color "green" "run it in mysql"
+
+sudo mysql < configure-db.sql
+
+
+#add the content for db
+print_color "green" "load the data"
+
+cat > db-load-script.sql <<-EOF
+USE ecomdb;
+CREATE TABLE products (id mediumint(8) unsigned NOT NULL auto_increment,Name varchar(255) default NULL,Price varchar(255) default NULL, ImageUrl varchar(255) default NULL,PRIMARY KEY (id)) AUTO_INCREMENT=1;
+
+INSERT INTO products (Name,Price,ImageUrl) VALUES ("Laptop","100","c-1.png"),("Drone","200","c-2.png"),("VR","300","c-3.png"),("Tablet","50","c-5.png"),("Watch","90","c-6.png"),("Phone Covers","20","c-7.png"),("Phone","80","c-8.png"),("Laptop","150","c-4.png");
+
+EOF
+
+check_db_status=$(sudo mysql -e "use ecomdb; select * from products")
+if [[ $check_db_status = *Laptop* ]]
+then
+print_color "green" "Product is available"
+else
+print_color "red" "Product is not available"
+fi
+
+#load the data into mysql
+print_color "green" "run the script"
+
+sudo mysql < db-load-script.sql
+
+
+#configure app server
+print_color "green" "install httpd and configure firewall"
+
+sudo yum install -y httpd php php-mysql
+
+
+sudo firewall-cmd --permanent --zone=public --add-port=80/tcp
+sudo firewall-cmd --reload
+
+checking_firewall 80
+
+
+#change the index file in httpd.conf file
+print_color "green" "changing index file"
+
+sudo sed -i 's/index.html/index.php/g' /etc/httpd/conf/httpd.conf
+
+
+#restart httpd services
+print_color "green" "start httpd service"
+
+sudo service httpd start
+sudo systemctl enable httpd
+
+check_service httpd
+
+#install and downlad php code
+print_color "green" "install and downlaod php code"
+sudo yum install -y git
+sudo git clone https://github.com/kodekloudhub/learning-app-ecommerce.git /var/www/html/
+
+
+#put entery in webapp
+print_color "green" "put ip entery in php code"
+sudo sed -i 's/172.20.1.101/localhost/g' /var/www/html/index.php
+
+print_color "green" "all set"
+
+
+webpage=$(curl http://localhost)
+
+for item in Laptop VR Phone Drone
+do
+check_item "$webpage" $item
+done#!/bin/bash
+
+
+
+function print_color(){
+NC="\033[0m"
+
+case $1 in
+
+    "red") color="\033[0;31m"
+       ;;
+    "green" ) color="\033[0;32m"
+       ;;
+    "*" ) color="\033[0m"
+       ;;
+esac
+  echo -e "${color} $2 ${NC}"
+  }
+
+function check_service(){
+if_service=$(systemctl is-active $1)
+if [ $if_service = "active" ]
+then
+ print_color "green" "$1 is active"
+else
+ print_color "red" "$1 is inactive"
+ exit 1
+fi
+}
+
+function checking_firewall()
+{
+firewall_check_status=$(firewall-cmd --list-all --zone=public | grep ports)
+ if [[ $firewall_check_status == *$1* ]]
+ then
+  print_color "green" "$1 port is active"
+ else
+  print_color "red" "$1 port is not active"
+ exit 1
+ fi
+}
+
+function check_item(){
+if [[ $1 = *$2* ]]
+then
+print_color "green" "$2 is available in browser"
+else
+print_color "red" "$2 is not available in browser"
+fi
+}
+
+#install firewall in DATABASE
+print_color "green" "firewall in DB.."
+
+sudo yum install -y firewalld
+sudo service firewalld start
+sudo systemctl enable firewalld
+
+check_service firewalld
+
+
+#configure mariadb service
+print_color "green" "mariadb"
+
+sudo yum install -y mariadb-server
+sudo service mariadb start
+sudo systemctl enable mariadb
+
+check_service mariadb
+
+#add firewall rule to the db
+print_color "green" "setup firewall rules"
+
+sudo firewall-cmd --permanent --zone=public --add-port=3306/tcp
+sudo firewall-cmd --reload
+
+checking_firewall 3306
+
+
+#create and configure user in db
+print_color "green" "user and pswd creation in DB"
+
+cat > configure-db.sql <<-EOF
+CREATE DATABASE ecomdb;
+CREATE USER 'ecomuser'@'localhost' IDENTIFIED BY 'ecompassword';
+GRANT ALL PRIVILEGES ON *.* TO 'ecomuser'@'localhost';
+FLUSH PRIVILEGES;
+EOF
+
+#run it in mysql
+print_color "green" "run it in mysql"
+
+sudo mysql < configure-db.sql
+
+
+#add the content for db
+print_color "green" "load the data"
+
+cat > db-load-script.sql <<-EOF
+USE ecomdb;
+CREATE TABLE products (id mediumint(8) unsigned NOT NULL auto_increment,Name varchar(255) default NULL,Price varchar(255) default NULL, ImageUrl varchar(255) default NULL,PRIMARY KEY (id)) AUTO_INCREMENT=1;
+
+INSERT INTO products (Name,Price,ImageUrl) VALUES ("Laptop","100","c-1.png"),("Drone","200","c-2.png"),("VR","300","c-3.png"),("Tablet","50","c-5.png"),("Watch","90","c-6.png"),("Phone Covers","20","c-7.png"),("Phone","80","c-8.png"),("Laptop","150","c-4.png");
+
+EOF
+
+check_db_status=$(sudo mysql -e "use ecomdb; select * from products")
+if [[ $check_db_status = *Laptop* ]]
+then
+print_color "green" "Product is available"
+else
+print_color "red" "Product is not available"
+fi
+
+#load the data into mysql
+print_color "green" "run the script"
+
+sudo mysql < db-load-script.sql
+
+
+#configure app server
+print_color "green" "install httpd and configure firewall"
+
+sudo yum install -y httpd php php-mysql
+
+
+sudo firewall-cmd --permanent --zone=public --add-port=80/tcp
+sudo firewall-cmd --reload
+
+checking_firewall 80
+
+
+#change the index file in httpd.conf file
+print_color "green" "changing index file"
+
+sudo sed -i 's/index.html/index.php/g' /etc/httpd/conf/httpd.conf
+
+
+#restart httpd services
+print_color "green" "start httpd service"
+
+sudo service httpd start
+sudo systemctl enable httpd
+
+check_service httpd
+
+#install and downlad php code
+print_color "green" "install and downlaod php code"
+sudo yum install -y git
+sudo git clone https://github.com/kodekloudhub/learning-app-ecommerce.git /var/www/html/
+
+
+#put entery in webapp
+print_color "green" "put ip entery in php code"
+sudo sed -i 's/172.20.1.101/localhost/g' /var/www/html/index.php
+
+print_color "green" "all set"
+
+
+webpage=$(curl http://localhost)
+
+for item in Laptop VR Phone Drone
+do
+check_item "$webpage" $item
+done
